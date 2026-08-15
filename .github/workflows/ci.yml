@@ -1,0 +1,49 @@
+name: CI - Build, Scan, Push to ECR
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  ECR_REPOSITORY: go-webapp
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  build-and-push:
+    name: Build, Scan, and Push Image
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build Docker image
+      env:
+        REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      run: |
+        docker build -t $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: '${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}'
+        format: 'table'
+        exit-code: '1' # Fails the pipeline if CRITICAL or HIGH vulnerabilities are found
+        ignore-unfixed: true
+
+    - name: Push image to Amazon ECR
+      env:
+        REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      run: |
+        docker push $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
