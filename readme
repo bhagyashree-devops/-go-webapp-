@@ -1,8 +1,0 @@
-go-webapp/
-├── main.go
-├── go.mod
-├── go.sum
-├── Dockerfile
-├── .dockerignore
-├── .github/workflows/ci.yml
-└── tests/
